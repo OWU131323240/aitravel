@@ -1,149 +1,122 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-require('dotenv').config();
+import express from "express";
+import fs from "fs";
+import path from "path";
+import fetch, { FetchError } from "node-fetch";
+import bodyParser from "body-parser";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = 8080;
+const MAX_RETRIES = 3; // 最大リトライ回数
+// LLM設定
+const PROVIDER = "openai";  // 'gemini' or 'openai'
+// const MODEL = "gemini-1.5-flash";  // Geminiモデル
+// const API_KEY = process.env.GEMINI_API_KEY;  // .env にセット
 
-app.use(express.json());
-app.use(express.static('public'));
+// OpenAI設定例
+const MODEL = "gpt-4o"; // OpenAIモデル
+const API_KEY = process.env.OPENAI_API_KEY; // .env にセット
 
-// 設定をコードで定義
-const PROVIDER = 'openai';  // 'openai' or 'gemini'
-const MODEL = 'gpt-4o-mini';  // OpenAI: 'gpt-4o-mini', Gemini: 'gemini-2.5-flash'
+app.use(express.static("public"));
+app.use(bodyParser.json());
 
-let promptTemplate;
-try {
-    promptTemplate = fs.readFileSync('prompt.md', 'utf8');
-} catch (error) {
-    console.error('Error reading prompt.md:', error);
-    process.exit(1);
-}
+// 指定された時間待機するヘルパー関数
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const OPENAI_API_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
-app.post('/api/', async (req, res) => {
-    try {
-        const { prompt, title = 'Generated Content', ...variables } = req.body;
-
-        // prompt.mdのテンプレート変数を自動置換
-        let finalPrompt = prompt || promptTemplate;
-        
-        // リクエストボディの全てのキーを変数として利用
-        for (const [key, value] of Object.entries(variables)) {
-            const regex = new RegExp(`\\$\\{${key}\\}`, 'g');
-            finalPrompt = finalPrompt.replace(regex, value);
-        }
-
-        let result;
-        if (PROVIDER === 'openai') {
-            result = await callOpenAI(finalPrompt);
-        } else if (PROVIDER === 'gemini') {
-            result = await callGemini(finalPrompt);
-        } else {
-            return res.status(400).json({ error: 'Invalid provider configuration' });
-        }
-
-        res.json({ 
-            title: title,
-            data: result 
-        });
-
-    } catch (error) {
-        console.error('API Error:', error);
-        res.status(500).json({ error: error.message });
+// 汎用WebAPIエンドポイント
+app.post("/api/", async (req, res) => {
+  try {
+    const promptTemplate = fs.readFileSync(path.join("./prompt.md"), "utf8");
+    // 変数置換
+    let prompt = promptTemplate;
+    for (const key in req.body) {
+      const re = new RegExp(`\\$\\{${key}\\}`, "g");
+      prompt = prompt.replace(re, req.body[key]);
     }
+
+    let response;
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      if (PROVIDER === 'gemini') {
+        // Gemini API呼び出し (generateContentエンドポイントを使用)
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+        response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": API_KEY
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              response_mime_type: "application/json",
+            }
+          })
+        });
+      } else if (PROVIDER === 'openai') {
+        // OpenAI API呼び出し
+        const url = 'https://api.openai.com/v1/chat/completions';
+        response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify({
+                model: MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                // OpenAIでJSON出力を強制する場合
+                response_format: { type: "json_object" }
+            })
+        });
+      } else {
+        return res.status(500).json({ error: `Invalid PROVIDER: ${PROVIDER}` });
+      }
+
+      if (response.ok) {
+        break; // 成功したらループを抜ける
+      }
+
+      if (response.status === 429 && i < MAX_RETRIES - 1) {
+        const waitTime = Math.pow(2, i) * 1000 + Math.random() * 1000; // 指数関数的バックオフ + ジッター
+        console.log(`Rate limit hit. Retrying in ${waitTime.toFixed(2)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`);
+        await delay(waitTime);
+      } else {
+        // 429でも最後のリトライだった場合、または他のエラーの場合はループを抜ける
+        break;
+      }
+    }
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `API Error (${PROVIDER}): ${response.statusText}`;
+
+        // リトライを使い果たしても429エラーだった場合、専用のメッセージを返す
+        if (response.status === 429) {
+            errorMessage = `API rate limit exceeded. Please wait a moment and try again. (All ${MAX_RETRIES} retries failed)`;
+        }
+        
+        return res.status(response.status).json({ error: errorMessage, details: errorText });
+        }
+
+    const apiResponse = await response.json();
+    let outputText;
+
+    if (PROVIDER === 'gemini') {
+      outputText = apiResponse.candidates[0].content.parts[0].text;
+    } else if (PROVIDER === 'openai') {
+      outputText = apiResponse.choices[0].message.content;
+    }
+    res.json({ output_text: outputText });    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-async function callOpenAI(prompt) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY environment variable is not set');
-    }
-
-    const response = await fetch(OPENAI_API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            model: MODEL,
-            messages: [
-                { role: 'system', content: prompt }
-            ],
-            max_completion_tokens: 2000,
-            response_format: { type: "json_object" }
-        })
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'OpenAI API error');
-    }
-
-    const data = await response.json();
-    const responseText = data.choices[0].message.content;
-    
-    try {
-        const parsedData = JSON.parse(responseText);
-        // Find the first value in the object that is an array
-        const arrayData = Object.values(parsedData).find(Array.isArray);
-        if (!arrayData) {
-            throw new Error('No array found in the LLM response object.');
-        }
-        return arrayData;
-    } catch (parseError) {
-        throw new Error('Failed to parse LLM response: ' + parseError.message);
-    }
-}
-
-async function callGemini(prompt) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new Error('GEMINI_API_KEY environment variable is not set');
-    }
-
-    const response = await fetch(`${GEMINI_API_BASE_URL}${MODEL}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            contents: [{
-                parts: [{ text: prompt }]
-            }],
-            generationConfig: {
-                maxOutputTokens: 3000,
-                response_mime_type: "application/json"
-            }
-        })
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Gemini API error');
-    }
-
-    const data = await response.json();
-    const responseText = data.candidates[0].content.parts[0].text;
-    
-    try {
-        const parsedData = JSON.parse(responseText);
-        // Find the first value in the object that is an array
-        const arrayData = Object.values(parsedData).find(Array.isArray);
-        if (!arrayData) {
-            throw new Error('No array found in the LLM response object.');
-        }
-        return arrayData;
-    } catch (parseError) {
-        throw new Error('Failed to parse LLM response: ' + parseError.message);
-    }
-}
-
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Config: ${PROVIDER} - ${MODEL}`);
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Config: ${PROVIDER} - ${MODEL}`);
 });

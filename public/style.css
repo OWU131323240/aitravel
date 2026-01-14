@@ -1,197 +1,71 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* Google Fontsから丸文字系のフォント「M PLUS Rounded 1c」をインポート */
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap');
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    line-height: 1.6;
-    color: #333;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
+  /* 全体を丸文字系のフォントに変更 */
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  /* 背景を #E0FFFF に変更 */
+  background-color: #E0FFFF;
+  /* 文字は中央寄せ */
+  text-align: center;
+  margin: 0;
+  padding: 20px;
+  color: #333;
 }
 
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+h1 {
+  font-weight: 700; /* フォントの太さを少し太くして見やすく */
 }
 
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 20px 30px;
-    border-radius: 15px;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+/* フォームと結果表示エリアの共通スタイル */
+form, #result {
+  /* 枠とかを#AFEEEE に変更 */
+  background-color: #AFEEEE;
+  /* 枠とかは丸みを持たせたデザイン */
+  border-radius: 15px;
+  padding: 25px;
+  margin: 20px auto;
+  max-width: 520px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* 少し影をつけて立体感を出す */
 }
 
-.header h1 {
-    color: #4a5568;
-    font-size: 2rem;
-    font-weight: 700;
+/* ラベルのスタイル */
+label {
+  display: flex; /* 横並びにするために flexbox を使用 */
+  justify-content: space-between; /* 要素間にスペースを均等に配置 */
+  align-items: center; /* 垂直方向中央に揃える */
+  margin-bottom: 15px;
+  font-size: 1.1em;
+  text-align: left; /* ラベル内のテキストは左寄せに */
 }
 
-.settings-icon {
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 10px;
-    border-radius: 50%;
-    transition: background-color 0.3s ease;
+/* 入力欄とセレクトボックスのスタイル */
+input[type="number"],
+select {
+  width: 60%;
+  padding: 8px;
+  /* margin-left: 10px; */ /* flexboxで配置するため不要に */
+  border: 1px solid #99d8d8;
+  /* 丸みを持たせたデザイン */
+  border-radius: 8px;
 }
 
-.settings-icon:hover {
-    background-color: rgba(0, 0, 0, 0.1);
+/* 送信ボタンのスタイル */
+button[type="submit"] {
+  background-color: #40a0a0;
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  font-size: 1.1em;
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  /* 丸みを持たせたデザイン */
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
 }
 
-.accordion {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
-    margin-bottom: 20px;
-    overflow: hidden;
-    max-height: 0;
-    transition: max-height 0.3s ease;
-    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+button[type="submit"]:hover {
+  background-color: #358585;
 }
 
-.accordion.open {
-    max-height: 800px;
-}
-
-.accordion-content {
-    padding: 30px;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #4a5568;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 16px;
-    transition: border-color 0.3s ease;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.form-row {
-    display: flex;
-    gap: 20px;
-    align-items: flex-end;
-}
-
-.form-row .form-group {
-    flex: 1;
-}
-
-.btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn:active {
-    transform: translateY(0);
-}
-
-.quiz-container {
-    background: rgba(255, 255, 255, 0.95);
-    padding: 30px;
-    border-radius: 15px;
-    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    margin-bottom: 20px;
-}
-
-.status {
-    text-align: center;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 8px;
-    font-weight: 600;
-    margin-top: 20px;
-}
-
-.loading {
-    display: none;
-    text-align: center;
-    padding: 20px;
-    font-size: 18px;
-    font-weight: 600;
-    color: #667eea;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 8px;
-    margin-top: 20px;
-}
-
-.loading.show {
-    display: block;
-}
-
-@media (max-width: 768px) {
-    .container {
-        padding: 10px;
-    }
-    
-    .header {
-        padding: 15px 20px;
-    }
-    
-    .header h1 {
-        font-size: 1.5rem;
-    }
-    
-    .accordion-content {
-        padding: 20px;
-    }
-    
-    .quiz-container {
-        padding: 20px;
-    }
-    
-    .form-row {
-        flex-direction: column;
-        gap: 0;
-    }
-}
